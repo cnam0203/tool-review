@@ -652,11 +652,13 @@ def get_project_info():
     if (existing_member):
         pro_info = get_project_info_object(pro_id)
         chat_messages = existing_member.get('messages', [])
+        synthesis_messages = existing_member.get('synthesis_messages', [])
 
         return jsonify({
             'message': 'You got it', 
             'data': {
                 'chatMessages': chat_messages,
+                'synthesisMessages': synthesis_messages,
                 'researchInfo': pro_info
             }})
     else:
@@ -1927,9 +1929,6 @@ def export_excel():
     question_id = request.get_json().get('question_id')
     username = request.username
 
-    app.logger.info(question_id)
-    app.logger.info(sub_question_id)
-
     references = list(references_collection.find({'pro_id': ObjectId(pro_id), 'status': {'$in': ['selected']}, 'deleted': False}))
     references = convert_id2_str(references, ['_id', 'pro_id'])
 
@@ -1962,7 +1961,6 @@ def export_excel():
                         for row in references:
                             response = sub_response_collection.find_one({'ref_id': ObjectId(row['_id']), 'question_id': ObjectId(sub_question['_id']), 'deleted': False})
                             if response:
-                                app.logger.info('Yes4')
                                 df[column_name].append(response['value'])
                             else:
                                 df[column_name].append('')
@@ -1978,38 +1976,52 @@ def export_excel():
 @app.route("/write_text", methods=['POST'])
 def write_text():
     pro_id = request.get_json().get('pro_id')
-    sub_question_id = request.get_json().get('sub_question_id')
-    question_id = request.get_json().get('question_id')
+    message = request.get_json().get('message')
     username = request.username
 
-    app.logger.info(question_id)
-    app.logger.info(sub_question_id)
+    existing_member = members_collection.find_one({'pro_id': ObjectId(pro_id), 'username': username, 'status': 'active'})
+    active_project = projects_collection.find_one({'_id': ObjectId(pro_id), 'pro_status': True})
+ 
+    if (active_project is False):
+        return jsonify({'message': 'The project is deactive', 'error': 'project'})
+    if (existing_member):
+        append_user_message = {
+            "role": "user", 
+            "content": message,
+        }
 
-    references = list(references_collection.find({'pro_id': ObjectId(pro_id), 'status': {'$in': ['selected']}, 'deleted': False}))
-    references = convert_id2_str(references, ['_id', 'pro_id'])
+        if 'synthesis_messages' not in existing_member:
+            existing_member['synthesis_messages'] = []
 
-    questions = list(question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
-    questions = convert_id2_str(questions, ['_id', 'pro_id'])
+        sent_messages = [
+            {'role': item['role'], 'content': item['content']}
+            for item in existing_member.get('synthesis_messages', [])
+            if datetime.utcnow() - datetime.strptime(item['created_at'], '%Y-%m-%d %H:%M:%S') <= timedelta(hours=hours_threshold)
+        ]
 
-    sub_questions = []
-    for question in questions:
-        results = list(sub_question_collection.find({'question_id': ObjectId(question['_id']), 'deleted': False}))
-        results = convert_id2_str(results, ['_id', 'question_id'])
-        sub_questions.extend(results)
+        references = list(references_collection.find({'pro_id': ObjectId(pro_id), 'status': {'$in': ['selected']}, 'deleted': False}))
+        references = convert_id2_str(references, ['_id', 'pro_id'])
 
-    df = {}
-    references = [ref for ref in references]
-    df['ID'] = [idx for idx, row in enumerate(references)]
-    df['Title'] = [row['title'] for row in references]
-    df['Authors'] = [row['authors'] for row in references]
-  
-    for idx, question in enumerate(questions):
-        if question['_id'] == question_id or question_id == '':
-            count = 0
-            for sub_idx, sub_question in enumerate(sub_questions):
-                if sub_question['question_id'] == question['_id']:
-                    count += 1
-                    if sub_question['_id'] == sub_question_id or sub_question_id == '':
+        questions = list(question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
+        questions = convert_id2_str(questions, ['_id', 'pro_id'])
+
+        sub_questions = []
+        for question in questions:
+            results = list(sub_question_collection.find({'question_id': ObjectId(question['_id']), 'deleted': False}))
+            results = convert_id2_str(results, ['_id', 'question_id'])
+            sub_questions.extend(results)
+
+        df = {}
+        references = [ref for ref in references]
+        df['ID'] = [idx for idx, row in enumerate(references)]
+        df['Title'] = [row['title'] for row in references]
+        df['Authors'] = [row['authors'] for row in references]
+    
+        for idx, question in enumerate(questions):
+                count = 0
+                for sub_idx, sub_question in enumerate(sub_questions):
+                    if sub_question['question_id'] == question['_id']:
+                        count += 1
                         question_value = sub_question['value']
                         column_name = f'{str(idx+1)}.{str(count)}.{question_value}'
                         df[column_name] = []
@@ -2017,30 +2029,50 @@ def write_text():
                         for row in references:
                             response = sub_response_collection.find_one({'ref_id': ObjectId(row['_id']), 'question_id': ObjectId(sub_question['_id']), 'deleted': False})
                             if response:
-                                app.logger.info('Yes4')
                                 df[column_name].append(response['value'])
                             else:
                                 df[column_name].append('')
 
-    pandas_df = pd.DataFrame(df)
-    df = pandas_df.to_csv(index=False).strip('\n').split('\n')
-    df_text = '\r\n'.join(df)  # <= this is the string that you can use with md5
-    prompt = f"""I have a DataFrame with research paper data, and I need analytical and comparative paragraphs synthesizing answers to various research questions across papers.
-    I want you write by comparision, classification and analysis, not listing what each paper does. DataFrame structure: [ID, title, Authors, research_questions - answers]"""
-    prompt += df_text
+        pandas_df = pd.DataFrame(df)
+        df = pandas_df.to_csv(index=False).strip('\n').split('\n')
+        df_text = '\r\n'.join(df)  # <= this is the string that you can use with md5
+        prompt = f"""Based on our dataFrame with research paper data. DataFrame structure: [ID, title, Authors, sub_research_questions - answers]"""
+        prompt += df_text
 
-    messages=[{ "content": prompt,"role": "user"}]
-    completions = completion(
-        model="gpt-3.5-turbo",
-        messages=messages,
-        n=1,
-        stop=None,
-        temperature=0.7,
-        api_key=openai.api_key
-    )
-    bot_message = completions['choices'][0]['message']['content']
-    # Return the text file as an attachment
-    return jsonify({'message': 'Successfully', 'response': bot_message})
+        new_message = {'role': 'user', 'content': prompt}
+
+        sent_messages.append(new_message)
+        sent_messages.append(append_user_message)
+
+        bot_message = find_bot_response(sent_messages)
+
+        if bot_message:
+            append_user_message['created_at'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            append_bot_message = {
+                "role": "assistant", 
+                "content": bot_message,
+                "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            }
+
+            existing_member['synthesis_messages'].append(append_user_message)
+            existing_member['synthesis_messages'].append(append_bot_message)
+            members_collection.update_one({'username': username, 'pro_id': ObjectId(pro_id)}, {'$set': {'synthesis_messages': existing_member['synthesis_messages']}})
+
+            return jsonify({
+                'message': 'Send message successfully', 
+                'success': True, 
+                'data': {
+                    'message': bot_message
+                }})
+        else:
+            return jsonify({
+                'message': 'Send message successfully', 
+                'success': True, 
+                'data': {
+                    'message': ''
+                }})
+    else:
+        return jsonify({'message': 'You do not exist in this project', 'error': 'project'})
       
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)

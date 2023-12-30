@@ -57,28 +57,46 @@ class RightSidebar3 extends Component {
     .catch((error) => {});
   }
 
-  onWrite = (question_id='', sub_question_id='') => {
-    const pro_id = this.context.project['pro_id'];
-    const endpoint = `write_text`;
-    const method = 'POST';
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-    const body = {
-      'pro_id': pro_id, 
-      'question_id': question_id, 
-      'sub_question_id': sub_question_id
-    };
+  onWrite = async (question_id='', sub_question_id='') => {
+    let message = ''
+
+    if (sub_question_id) {
+      message = `I want to write a summary for the sub research question ${question_id}.${sub_question_id}`;
+    } else {
+      if (question_id) {
+        message = `I want to write a summary for all sub research questions in research question ${question_id}`;
+      } else {
+        message = `I want to write a summary for all sub research questions `;
+      }
+    }
 
     this.setState({ loading: true });
-    this.context.handleApiRequest(endpoint, method, headers, body)
-    .then((responseData) => {
-      this.props.updateResponse(responseData.response);
-      this.setState({ loading: false });
-    })
-    .catch((error) => {
-      this.setState({ loading: false });
-    });
+    
+    // Add user's message to the chat first
+    this.props.onMessageSent({ content: message, role: 'user' });
+
+    const pro_id = this.context.project['pro_id'];
+    const endpoint = 'write_text';
+    const method = 'POST';
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+
+    const body = {
+      'pro_id': pro_id,
+      'ref_id': this.props.ref_id || '',
+      'question_type': this.props.question_type || '0',
+      'message': message
+    }
+
+    const response = await this.context.handleApiRequest(endpoint, method, headers, body);
+    // Handle the response from Flask and update your chat
+
+    if (response.success) {
+      this.props.onMessageSent({ content: response.data.message, role: 'assistant' });
+    }
+
+    this.setState({ loading: false });
   }
 
   render() {
@@ -119,6 +137,7 @@ class RightSidebar3 extends Component {
                 </Dropdown.Toggle>
                 <Dropdown.Menu>
                   <Dropdown.Item onClick={() => this.onExport()}>Export all responses</Dropdown.Item>
+                  <Dropdown.Item onClick={() => this.onWrite()}>Write a summary</Dropdown.Item>
                 </Dropdown.Menu>
               </Dropdown>
             </div>
@@ -137,6 +156,7 @@ class RightSidebar3 extends Component {
 
                           <Dropdown.Menu>
                             <Dropdown.Item onClick={() => this.onExport(question['_id'])}>Export all responses</Dropdown.Item>
+                            <Dropdown.Item onClick={() => this.onWrite(index + 1)}>Write a summary</Dropdown.Item>
                           </Dropdown.Menu>
                         </Dropdown>
                       </div>
@@ -150,7 +170,7 @@ class RightSidebar3 extends Component {
                               </Dropdown.Toggle>
                               <Dropdown.Menu>
                                 <Dropdown.Item onClick={() => this.onExport(question['_id'], sub_question['_id'])}>Export all responses</Dropdown.Item>
-                                <Dropdown.Item onClick={() => this.onWrite(question['_id'], sub_question['_id'])}>Write a summary</Dropdown.Item>
+                                <Dropdown.Item onClick={() => this.onWrite(index + 1, sub_index + 1)}>Write a summary</Dropdown.Item>
                               </Dropdown.Menu>
                             </Dropdown>
                           </div>

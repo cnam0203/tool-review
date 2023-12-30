@@ -29,7 +29,6 @@ class ReferenceExtraction extends Component {
 
       this.context.handleApiRequest(endpoint, method, headers, body)
       .then((responseData) => {
-        console.log(responseData['reference_info']);
         
         this.setState({
           referenceInfo: responseData['reference_info'],
