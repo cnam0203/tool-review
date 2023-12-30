@@ -53,7 +53,7 @@ class MainPage extends Component {
         <Row>
           <Col sm={7}>
             <ChatMessageList messages={chatMessages} className="overflow-auto" updateResearchInfo={this.updateResearchInfo} />
-            <ChatInput endpoint="sendMessage" onMessageSent={this.handleMessageSent} className="sticky-bottom" />
+            <ChatInput endpoint={"send_message_step_1"} onMessageSent={this.handleMessageSent} className="sticky-bottom" />
           </Col>
           <Col sm={5}>
             <RightSidebar researchInfo={researchInfo} /> {/* Pass researchInfo to RightSidebar */}

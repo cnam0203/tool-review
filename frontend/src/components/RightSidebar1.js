@@ -55,7 +55,7 @@ class RightSidebar1 extends Component {
     this.setState({ file: selectedFile });
   };
 
-  handleUpload = async () => {
+  handleUploadFile = async () => {
     const { file, referenceId } = this.state;
     const pro_id = this.context.project['pro_id'];
 
@@ -123,7 +123,6 @@ class RightSidebar1 extends Component {
   }
 
   handleSave = async (index) => {
-
     const modalInfo = {
       level: 'update',
       message: `Do you want to edit this response?`,
@@ -185,44 +184,38 @@ class RightSidebar1 extends Component {
   }
 
   autoAnswer = (is_replaced) => {
-    const token = localStorage.getItem('token');
-      // Fetch referenceInfo from your backend API
-      const query = new URLSearchParams(window.location.search);
-      const documentId = query.get('id') // Replace with the actual document_id
+    const pro_id = this.context.project['pro_id'];
+    const {referenceId} = this.state;
+    const endpoint = `auto_answer`;
+    const method = 'POST';
+    const headers = {
+      'Content-Type': 'application/json'
+    };
   
-      if (!token) {
-        alert('Token not found');
-        return;
-      }
-  
-      const requestOptions = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // Include the Bearer token
-        },
-        body: JSON.stringify({is_replaced: is_replaced})
-      };
-  
-      this.setState({isFinding: true});
-      this.setState({ loading: true });
-      fetch(`http://localhost:5000/auto_answer?document_id=${documentId}`, requestOptions)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.json();
-      })
-      .then((data) => {
-        this.setState({isFinding: false});
-        alert("Finished");
-        window.location.reload();
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-        // Handle the error
-        alert('Error: ' + error.message);
+    const body = {
+      'pro_id': pro_id,
+      'ref_id': referenceId,
+      'type': 'qlty' 
+    }
+
+    this.setState({isFinding: true});
+    this.setState({ loading: true });
+
+    this.context.handleApiRequest(endpoint, method, headers, body)
+    .then((data) => {
+      this.setState({isFinding: false, loading: false});
+
+      this.context.handleShowNoti({
+        level: 'success',
+        message: data.message
       });
+
+
+      window.location.reload();
+    })
+    .catch((error) => {
+      this.setState({isFinding: false, loading: false});
+    });
   }
 
   saveTag = (status) => {
@@ -340,7 +333,7 @@ class RightSidebar1 extends Component {
                 </div>
                 {this.state.file ? 
                   <div className="d-flex justify-content-center mt-3">
-                      <Button onClick={this.handleUpload}>Save new PDF</Button> 
+                      <Button onClick={this.handleUploadFile}>Save new PDF</Button> 
                   </div> : <></>
                 }
               </Card.Body>

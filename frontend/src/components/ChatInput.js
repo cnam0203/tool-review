@@ -30,7 +30,7 @@ class ChatInput extends Component {
     this.props.onMessageSent({ content: message, role: 'user' });
 
     const pro_id = this.context.project['pro_id'];
-    const endpoint = 'send_message_step_1';
+    const endpoint = this.props.endpoint;
     const method = 'POST';
     const headers = {
       'Content-Type': 'application/json',
@@ -38,6 +38,8 @@ class ChatInput extends Component {
 
     const body = {
       'pro_id': pro_id,
+      'ref_id': this.props.ref_id || '',
+      'question_type': this.props.question_type || '0',
       'message': message
     }
     

@@ -15,6 +15,8 @@ db.createCollection('tr_qlty_question');
 db.createCollection('tr_main_message');
 db.createCollection('tr_reference');
 db.createCollection('tr_qlty_response');
+db.createCollection('tr_sub_response');
+db.createCollection('tr_reference_chat');
 
 db['tr_user'].insert({ 
     'username': 'admin',

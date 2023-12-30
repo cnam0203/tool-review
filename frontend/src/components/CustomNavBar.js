@@ -77,7 +77,7 @@ const CustomNavbar = () => {
           </a>
           <a
             href="/fulltext-screen"
-            className={`nav-link ${window.location.pathname === "/fulltext-screening" ? "active" : ""}`}
+            className={`nav-link ${window.location.pathname === "/fulltext-screen" ? "active" : ""}`}
             style={{
               fontWeight: "bold",
               // Add other styles as needed

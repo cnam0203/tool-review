@@ -16,6 +16,8 @@ import ReferenceSearch from './pages/ReferenceSearch';
 import PracticalScreen from './pages/PracticalScreen';
 import FullTextScreen from './pages/FullTextScreen';
 import ReferenceFullScreen from './pages/ReferenceFullScreen';
+import DataExtraction from './pages/DataExtraction';
+import ReferenceExtraction from './pages/ReferenceExtraction';
 
 function AppRouter() {
     const { token, role } = useContext(AppContext);
@@ -93,6 +95,18 @@ function AppRouter() {
                     path="/fulltext-screen"
                     element={
                         token ? <FullTextScreen/> : <Navigate to="/login" />
+                    }
+                />
+                <Route
+                    path="/data-extraction"
+                    element={
+                        token ? <DataExtraction/> : <Navigate to="/login" />
+                    }
+                />
+                <Route
+                    path="/reference-extraction"
+                    element={
+                        token ? <ReferenceExtraction/> : <Navigate to="/login" />
                     }
                 />
                 <Route

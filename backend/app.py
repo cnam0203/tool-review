@@ -62,13 +62,15 @@ objective_collection = mongo['tr_objective']
 question_collection = mongo['tr_question']
 keyword_collection = mongo['tr_keyword']
 sub_question_collection = mongo['tr_sub_question']
+sub_response_collection = mongo['tr_sub_response']
 qlty_question_collection = mongo['tr_qlty_question']
 qlty_response_collection = mongo['tr_qlty_response']
 main_message_collection = mongo['tr_main_message']
 references_collection = mongo['tr_reference']
+reference_chat_collection = mongo['tr_reference_chat']
 
 #Open AI config
-openai.api_key = os.environ.get("OPENAI_KEY", "")
+openai.api_key = os.environ.get("OPENAI_API_KEY", "")
 hours_threshold = 12
 
 model_embedding = tf.saved_model.load("model/")
@@ -808,6 +810,21 @@ def check_record_exist(collection, query):
     else:
         return False
 
+def find_bot_response(sent_messages):
+    completions = completion(
+            model="gpt-3.5-turbo",
+            messages=sent_messages,
+            max_tokens=512,
+            n=1,
+            stop=None,
+            temperature=0.7,
+            api_key=openai.api_key
+        )
+
+    bot_message = completions['choices'][0]['message']['content'].strip()
+
+    return bot_message
+    
 @app.route('/send_message_step_1', methods=['POST'])
 def send_message_step_1():
     pro_id = request.get_json().get('pro_id')
@@ -830,7 +847,7 @@ def send_message_step_1():
         sent_messages = [
             {'role': item['role'], 'content': item['content']}
             for item in existing_member.get('messages', [])
-            if datetime.utcnow() - datetime.strptime(item['created_at'], '%Y-%m-%d %H:%M') <= timedelta(hours=hours_threshold)
+            if datetime.utcnow() - datetime.strptime(item['created_at'], '%Y-%m-%d %H:%M:%S') <= timedelta(hours=hours_threshold)
         ]
 
         pro_info = get_project_info_object(pro_id)
@@ -863,24 +880,14 @@ def send_message_step_1():
 
         sent_messages.append(new_message)
         sent_messages.append(append_user_message)
+        bot_message = find_bot_response(sent_messages)
 
-        completions = completion(
-            model="gpt-3.5-turbo",
-            messages=sent_messages,
-            max_tokens=512,
-            n=1,
-            stop=None,
-            temperature=0.7,
-            api_key=openai.api_key
-        )
-
-        bot_message = completions['choices'][0]['message']['content'].strip()
         if bot_message:
-            append_user_message['created_at'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+            append_user_message['created_at'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             append_bot_message = {
                 "role": "assistant", 
                 "content": bot_message,
-                "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+                "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             }
 
             existing_member['messages'].append(append_user_message)
@@ -900,6 +907,111 @@ def send_message_step_1():
                 'data': {
                     'message': ''
                 }})
+    else:
+        return jsonify({'message': 'You do not exist in this project', 'error': 'project'})
+
+def load_model(path):
+    loaded_model = joblib.load(path)
+    return loaded_model
+
+def find_neighbors(model, text, chunks):
+    inp_emb = model_embedding([text])["outputs"]
+    neighbors = model.kneighbors(inp_emb, return_distance=False)[0]
+
+    return [chunks[i] for i in neighbors]
+
+@app.route('/send_message_step_2', methods=['POST'])
+def send_message_step_2():
+    pro_id = request.get_json().get('pro_id')
+    ref_id = request.get_json().get('ref_id')
+    question_type = request.get_json().get('question_type')
+    message = request.get_json().get('message')
+    username = request.username
+
+    existing_member = members_collection.find_one({'pro_id': ObjectId(pro_id), 'username': username, 'status': 'active'})
+    active_project = projects_collection.find_one({'_id': ObjectId(pro_id), 'pro_status': True})
+    existing_ref = references_collection.find_one({'_id': ObjectId(ref_id), 'deleted': False})
+    existing_ref_chat = reference_chat_collection.find_one({'ref_id': ObjectId(ref_id), 'username': username, 'deleted': False})
+
+    if (active_project is False):
+        return jsonify({'message': 'The project is deactive', 'error': 'project'})
+    if (existing_member):
+        if (existing_ref):
+            question_field = ''
+            if (question_type == '0'):
+                question_field = 'qlty_messages'
+            else:
+                question_field = 'extract_messages'
+
+            append_user_message = {
+                "role": "user", 
+                "content": message,
+            }
+
+            ref_chat = {}
+            if existing_ref_chat:
+                ref_chat = existing_ref_chat
+
+            if question_field not in ref_chat:
+                ref_chat[question_field] = []
+
+            sent_messages = [
+                {'role': item['role'], 'content': item['content']}
+                for item in ref_chat[question_field]
+                if datetime.utcnow() - datetime.strptime(item['created_at'], '%Y-%m-%d %H:%M:%S') <= timedelta(hours=hours_threshold)
+            ]
+
+            if ('pdf' in existing_ref):
+                new_message = create_prompt_question(existing_ref, message)
+                sent_messages.append(new_message)
+            else:
+                sent_messages.append(append_user_message)
+
+            bot_message = find_bot_response(sent_messages)
+            if bot_message:
+                append_user_message['created_at'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                append_bot_message = {
+                    "role": "assistant", 
+                    "content": bot_message,
+                    "created_at": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                }
+
+                ref_chat[question_field].append(append_user_message)
+                ref_chat[question_field].append(append_bot_message)
+
+                if (existing_ref_chat):
+                    reference_chat_collection.update_one({
+                        'username': username, 
+                        'ref_id': ObjectId(ref_id)}, 
+                        {
+                            '$set': {
+                                **{question_field: ref_chat[question_field]}
+                            }
+                        }
+                    )
+                else:
+                    reference_chat_collection.insert_one({
+                        'ref_id': ObjectId(ref_id),
+                        'username': username,
+                        'deleted': False,
+                        **{question_field: ref_chat[question_field]}
+                    })
+                    
+                return jsonify({
+                    'message': 'Send message successfully', 
+                    'success': True, 
+                    'data': {
+                        'message': bot_message
+                    }})
+            else:
+                return jsonify({
+                    'message': 'Send message successfully', 
+                    'success': True, 
+                    'data': {
+                        'message': ''
+                    }})
+        else:
+            return jsonify({'message': 'This reference does not exist', 'error': 'reference'})
     else:
         return jsonify({'message': 'You do not exist in this project', 'error': 'project'})
 
@@ -1017,6 +1129,17 @@ def get_references():
         qlty_questions = list(qlty_question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
         qlty_questions = convert_id2_str(qlty_questions, ['_id', 'pro_id'])
 
+        #Research questions
+        questions = list(question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
+        questions = convert_id2_str(questions, ['_id', 'pro_id'])
+
+        sub_questions = []
+        for question in questions:
+            question_id = question['_id']
+            results = list(sub_question_collection.find({'question_id': ObjectId(question_id), 'deleted': False}))
+            results = convert_id2_str(results, ['_id', 'question_id'])
+            sub_questions.extend(results)
+
         status = request.args.get('status', '')
 
         if status:
@@ -1029,12 +1152,18 @@ def get_references():
         for ref in references:
             ref['num_qlty_questions'] = len(qlty_questions)
             ref['num_qlty_responses'] = 0
+            ref['num_sub_questions'] = len(sub_questions)
+            ref['num_sub_responses'] = 0
 
             for question in qlty_questions:
-
                 response = qlty_response_collection.find_one({'question_id': ObjectId(question['_id']), 'ref_id': ObjectId(ref['_id']), 'deleted': False})
                 if response:
                     ref['num_qlty_responses'] += 1
+
+            for question in sub_questions:
+                response = sub_response_collection.find_one({'question_id': ObjectId(question['_id']), 'ref_id': ObjectId(ref['_id']), 'deleted': False})
+                if response:
+                    ref['num_sub_responses'] += 1
 
         return jsonify({
             'message': 'You got it', 
@@ -1072,16 +1201,50 @@ def get_reference_info():
     username = request.username
     existing_member = members_collection.find_one({'pro_id': ObjectId(pro_id), 'username': username, 'status': 'active'})
     active_project = projects_collection.find_one({'_id': ObjectId(pro_id), 'pro_status': True})
- 
+    existing_ref_chat = reference_chat_collection.find_one({'ref_id': ObjectId(ref_id), 'username': username, 'deleted': False})
+
     if (active_project is False):
         return jsonify({'message': 'The project is deactive', 'error': 'project'})
     if (existing_member):
         reference = references_collection.find_one({'_id': ObjectId(ref_id), 'pro_id': ObjectId(pro_id), 'deleted': False})
-        qlty_questions = list(qlty_question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
-        qlty_questions = convert_id2_str(qlty_questions, ['_id', 'pro_id'])
-
         if (reference):
             reference = convert_id2_str(reference, ['_id', 'pro_id'], False)
+            #Quality assessment questions
+            qlty_questions = list(qlty_question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
+            qlty_questions = convert_id2_str(qlty_questions, ['_id', 'pro_id'])
+
+            #Research questions
+            questions = list(question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
+            questions = convert_id2_str(questions, ['_id', 'pro_id'])
+
+            sub_questions = []
+            reference['response_sub_questions'] = {}
+            for question in questions:
+                question_id = question['_id']
+                reference['response_sub_questions'][question_id] = {
+                    'value': question['value'],
+                    'sub_questions': {}
+                }
+
+                results = list(sub_question_collection.find({'question_id': ObjectId(question_id), 'deleted': False}))
+                results = convert_id2_str(results, ['_id', 'question_id'])
+
+                for result in results:
+                    sub_id = result['_id']
+                    sub_value = result['value']
+
+                    reference['response_sub_questions'][question_id]['sub_questions'][sub_id] = {
+                        'value': sub_value,
+                        'response': '',
+                        'responded_by': ''
+                    }
+
+                    response = sub_response_collection.find_one({'question_id': ObjectId(sub_id), 'ref_id': ObjectId(reference['_id']), 'deleted': False})
+                    if (response):
+                        reference['response_sub_questions'][question_id]['sub_questions'][sub_id]['response'] = response['value']
+                        reference['response_sub_questions'][question_id]['sub_questions'][sub_id]['responded_by'] = response['updated_by']
+
+                sub_questions.extend(results)
 
             reference['response_qlty_questions'] = []
             for question in qlty_questions:
@@ -1098,10 +1261,19 @@ def get_reference_info():
                     response_question['responded_by'] = response['updated_by']
                 
                 reference['response_qlty_questions'].append(response_question)
+           
+            qlty_messages = []
+            extract_messages = []
+
+            if existing_ref_chat:
+                qlty_messages = existing_ref_chat.get('qlty_messages', [])
+                extract_messages = existing_ref_chat.get('extract_messages', [])
 
             return jsonify({
                 'message': 'You got it', 
-                'reference_info': reference
+                'reference_info': reference,
+                'qlty_messages': qlty_messages,
+                'extract_messages': extract_messages
                 })
         else:
             return jsonify({
@@ -1571,6 +1743,173 @@ def update_qlty_response():
                     'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M'),
                     'deleted': False
                 })
+
+            return jsonify({
+                'message': 'Update successfully', 
+                'success': True,})
+        else:
+            return jsonify({'message': 'The reference is not valid', 'error': 'reference'})
+    else:
+        return jsonify({'message': 'You do not have permissions to edit reference', 'error': 'project'})
+
+@app.route('/update_sub_response', methods=['POST'])
+def update_sub_response():
+    pro_id = request.get_json().get('pro_id')
+    ref_id = request.get_json().get('ref_id')
+    question_id = request.get_json().get('question_id')
+    new_response = request.get_json().get('new_response')
+    username = request.username
+
+    active_project = projects_collection.find_one({'_id': ObjectId(pro_id), 'pro_status': True})
+    existing_member = members_collection.find_one({'pro_id': ObjectId(pro_id), 'username': username, 'status': 'active'})
+    existing_ref = references_collection.find_one({'pro_id': ObjectId(pro_id), '_id': ObjectId(ref_id), 'deleted': False})
+    existing_response = sub_response_collection.find_one({'ref_id': ObjectId(ref_id), 'question_id': ObjectId(question_id), 'deleted': False})
+
+    if (active_project is False):
+        return jsonify({'message': 'The project is deactivated', 'error': 'project'})
+    
+    if (existing_member):
+        if (existing_ref):
+            if existing_response:
+                sub_response_collection.update_one({
+                    'ref_id': ObjectId(ref_id), 
+                    'question_id': ObjectId(question_id)
+                }, {
+                    '$set': {
+                        'value': new_response,
+                        'updated_by': username,
+                        'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+                    }
+                })
+            else:
+                sub_response_collection.insert_one({
+                    'ref_id': ObjectId(ref_id), 
+                    'question_id': ObjectId(question_id),
+                    'value': new_response,
+                    'updated_by': username,
+                    'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M'),
+                    'deleted': False
+                })
+
+            return jsonify({
+                'message': 'Update successfully', 
+                'success': True,})
+        else:
+            return jsonify({'message': 'The reference is not valid', 'error': 'reference'})
+    else:
+        return jsonify({'message': 'You do not have permissions to edit reference', 'error': 'project'})
+
+
+def create_prompt_question(existing_ref, message):
+    chunks = existing_ref['pdf']['chunks']
+    modelpath = existing_ref['pdf']['modelpath']
+
+    loaded_model = load_model(modelpath)
+    topn_chunks = find_neighbors(loaded_model, message, chunks)
+    prompt = ""
+    prompt += 'search results:\n\n'
+    for c in topn_chunks:
+        prompt += c + '\n\n'
+
+    prompt += (
+        "Instructions: Compose a comprehensive reply to the query using the search results given. "
+        "Cite each reference using [ Page Number] notation (every result has this number at the beginning). "
+        "Citation should be done at the end of each sentence. If the search results mention multiple subjects "
+        "with the same name, create separate answers for each. Only include information found in the results and "
+        "don't add any additional information. Make sure the answer is correct and don't output false content. "
+        "Only answer what is asked. The "
+        "answer should be short and concise. Answer step-by-step. \n\n"
+    )
+
+    prompt += f"Query: {message}\nAnswer:"
+    new_message = {'role': 'user', 'content': prompt}
+
+    return new_message
+    
+@app.route('/auto_answer', methods=['POST'])
+def auto_answer():
+    pro_id = request.get_json().get('pro_id')
+    ref_id = request.get_json().get('ref_id')
+    type = request.get_json().get('type')
+    question_id = request.get_json().get('question_id')
+    username = request.username
+
+    active_project = projects_collection.find_one({'_id': ObjectId(pro_id), 'pro_status': True})
+    existing_member = members_collection.find_one({'pro_id': ObjectId(pro_id), 'username': username, 'status': 'active'})
+    existing_ref = references_collection.find_one({'pro_id': ObjectId(pro_id), '_id': ObjectId(ref_id), 'deleted': False})
+
+    if (active_project is False):
+        return jsonify({'message': 'The project is deactivated', 'error': 'project'})
+    
+    if (existing_member):
+        if (existing_ref and 'pdf' in existing_ref):
+            if (type == 'qlty'):
+                #Quality assessment questions
+                qlty_questions = list(qlty_question_collection.find({'pro_id': ObjectId(pro_id), 'deleted': False}))
+                qlty_questions = convert_id2_str(qlty_questions, ['_id', 'pro_id'])
+
+                for question in qlty_questions:
+                    question_text = question['value']
+                    id = question['_id']
+
+                    new_prompt = create_prompt_question(existing_ref, question_text)
+                    bot_message = find_bot_response([new_prompt])
+
+                    if bot_message:
+                        existing_response = qlty_response_collection.find_one({'ref_id': ObjectId(ref_id), 'question_id': ObjectId(id), 'deleted': False})
+                        if existing_response:
+                            qlty_response_collection.update_one({
+                                'ref_id': ObjectId(ref_id), 
+                                'question_id': ObjectId(id)
+                            }, {
+                                '$set': {
+                                    'value': bot_message,
+                                    'updated_by': username,
+                                    'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+                                }
+                            })
+                        else:
+                            qlty_response_collection.insert_one({
+                                'ref_id': ObjectId(ref_id), 
+                                'question_id': ObjectId(id),
+                                'value': bot_message,
+                                'updated_by': username,
+                                'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M'),
+                                'deleted': False
+                            })
+
+            else:
+                #Research questions
+                sub_questions = list(sub_question_collection.find({'question_id': ObjectId(question_id), 'deleted': False}))
+                for question in sub_questions:
+                    question_text = question['value']
+                    id = question['_id']
+
+                    new_prompt = create_prompt_question(existing_ref, question_text)
+                    bot_message = find_bot_response([new_prompt])
+
+                    if bot_message:
+                        existing_response = sub_response_collection.find_one({'ref_id': ObjectId(ref_id), 'question_id': id, 'deleted': False})
+                        if existing_response:
+                            sub_response_collection.update_one({
+                                'ref_id': ObjectId(ref_id), 
+                                'question_id': id
+                            }, {
+                                '$set': {
+                                    'value': bot_message,
+                                    'updated_by': username,
+                                    'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+                                }
+                            })
+                        else:
+                            sub_response_collection.insert_one({
+                                'ref_id': ObjectId(ref_id), 
+                                'question_id': id,
+                                'value': bot_message,
+                                'updated_by': username,
+                                'updated_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M'),
+                                'deleted': False
+                            })
 
             return jsonify({
                 'message': 'Update successfully', 

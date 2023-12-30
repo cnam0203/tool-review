@@ -141,8 +141,8 @@ class MemberPage extends Component {
             {members.map((member, index) => (
               <React.Fragment key={index}>
                 <tr>
-                  <td>
-                    {member.mem_username}
+                  <td style={{'fontWeight': member.mem_username == this.context.username ? '800' : '500'}}>
+                    {member.mem_username} {member.mem_username == this.context.username ? '(me)' : ''}
                   </td>
                   <td>{member.mem_role}</td>
                   <td>{member.mem_status}</td>

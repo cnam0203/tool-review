@@ -1,11 +1,11 @@
 import React, { Component } from 'react';
 import { Container, Row, Col, Button } from 'react-bootstrap';
-import RightSidebar1 from '../components/RightSidebar1';
+import RightSidebar2 from '../components/RightSidebar2';
 import ChatMessageList from '../components/ChatMessageList';
 import ChatInput from '../components/ChatInput';
 import AppContext from '../AppContext';
 
-class ReferenceFullScreen extends Component {
+class ReferenceExtraction extends Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -29,10 +29,11 @@ class ReferenceFullScreen extends Component {
 
       this.context.handleApiRequest(endpoint, method, headers, body)
       .then((responseData) => {
-        const data = responseData['reference_info'];
+        console.log(responseData['reference_info']);
+        
         this.setState({
-          referenceInfo: data,
-          chatMessages: responseData['qlty_messages']
+          referenceInfo: responseData['reference_info'],
+          chatMessages: responseData['extract_messages']
         })
       })
       .catch((error) => {});
@@ -68,10 +69,10 @@ class ReferenceFullScreen extends Component {
           </Col>
           <Col sm={3}>
             <ChatMessageList isSave={false} messages={chatMessages} updatedocumentInfo={this.updatedocumentInfo} />
-            <ChatInput endpoint={"send_message_step_2"} ref_id={this.state.referenceId} onMessageSent={this.handleMessageSent} className="sticky-bottom" question_type="0"/>
+            <ChatInput endpoint={"send_message_step_2"} ref_id={this.state.referenceId} onMessageSent={this.handleMessageSent} className="sticky-bottom" question_type="1"/>
           </Col>
           <Col sm={4}>
-            <RightSidebar1 referenceInfo={referenceInfo} />
+            <RightSidebar2 referenceInfo={referenceInfo} />
           </Col>
         </Row>
       </Container>
@@ -79,4 +80,4 @@ class ReferenceFullScreen extends Component {
   }
 }
 
-export default ReferenceFullScreen;
+export default ReferenceExtraction;

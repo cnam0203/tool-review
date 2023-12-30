@@ -286,13 +286,13 @@ class ReferencePage extends Component {
                     <thead>
                         <tr>
                         <th style={{width: '2%'}}>ID</th>
-                        <th style={{width: '20%'}}>Title</th>
+                        <th style={{width: '25%'}}>Title</th>
                         <th style={{width: '15%'}}>Authors</th>
-                        <th style={{width: '5%'}}>Published year</th>
-                        <th style={{width: '5%'}}>Created by</th>
+                        <th style={{width: '10%'}}>Published year</th>
+                        <th style={{width: '10%'}}>Created by</th>
                         <th style={{width: '10%'}}>Created at</th>
-                        <th style={{width: '5%'}}>Updated by</th>
-                        <th style={{width: '10%'}}>Updated at</th>
+                        {/* <th style={{width: '5%'}}>Updated by</th>
+                        <th style={{width: '10%'}}>Updated at</th> */}
                         {/* <th>Source title</th> */}
                         <th style={{width: '15%', textAlign: 'center'}}>Status</th>
                         <th></th>
@@ -307,8 +307,8 @@ class ReferencePage extends Component {
                             <td>{item['year']}</td>
                             <td>{item['created_by']}</td>
                             <td>{item['created_at']}</td>
-                            <td>{item['updated_by']}</td>
-                            <td>{item['updated_at']}</td>
+                            {/* <td>{item['updated_by']}</td>
+                            <td>{item['updated_at']}</td> */}
                             {/* <td>{item['Source title']}</td> */}
                             <th>
                               {
