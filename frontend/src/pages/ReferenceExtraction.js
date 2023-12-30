@@ -52,7 +52,7 @@ class ReferenceExtraction extends Component {
 
   render() {
     const { chatMessages, referenceInfo, referenceId } = this.state; // Get referenceInfo from the state
-    const pdfUrl = `http://192.168.2.215:5000/public/static_reference/${referenceId}.pdf`;
+    const pdfUrl = `http://${process.env.REACT_APP_FLASK_IP}/public/static_reference/${referenceId}.pdf`;
 
     return (
       <Container fluid>
@@ -71,7 +71,7 @@ class ReferenceExtraction extends Component {
             <ChatInput endpoint={"send_message_step_2"} ref_id={this.state.referenceId} onMessageSent={this.handleMessageSent} className="sticky-bottom" question_type="1"/>
           </Col>
           <Col sm={4}>
-            <RightSidebar2 referenceInfo={referenceInfo} />
+            <RightSidebar2 referenceInfo={referenceInfo} onMessageSent={this.handleMessageSent}/>
           </Col>
         </Row>
       </Container>

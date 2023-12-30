@@ -10,8 +10,8 @@ const AppProvider = ({children}) => {
     const [role, setRole] = useState(localStorage.getItem('role'));
     const [showModal, setShowModal] = useState(false);
     const [showNoti, setShowNoti] = useState(false);
-    const [projects, setProjects] = useState(JSON.parse(localStorage.getItem('projects')) || []);
-    const [project, setProject] = useState(JSON.parse(localStorage.getItem('project')) || {});
+    const [projects, setProjects] = useState(JSON.parse(localStorage.getItem('projects', [])) || []);
+    const [project, setProject] = useState(JSON.parse(localStorage.getItem('project', {})) || {});
 
     const [modalInfo, setModalInfo] = useState({
         level: '',
@@ -94,7 +94,6 @@ const AppProvider = ({children}) => {
         setToken(info['token']);
         setUsername(info['username']);
         setRole(info['role']);
-        handleUpdateProjects(info['projects'])
     }
  
     const handleApiRequest = async (endpoint, method = 'GET', headers = {}, body, isFile=false, isJsonParse=true) => {
@@ -103,8 +102,8 @@ const AppProvider = ({children}) => {
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
-    
-            const response = await fetch(`http://192.168.2.215:5000/${endpoint}`, {
+
+            const response = await fetch(`http://${process.env.REACT_APP_FLASK_IP}/${endpoint}`, {
                 method,
                 headers,
                 body: body ? (isFile ? body : JSON.stringify(body)) : null,
@@ -128,7 +127,6 @@ const AppProvider = ({children}) => {
 
                 return data;
             } else {
-                console.log('Not json parse')
                 return response;
             }
         } catch (error) {

@@ -7,7 +7,7 @@ from bson import ObjectId
 from litellm import completion
 from time import sleep
 from sklearn.neighbors import NearestNeighbors
-import tensorflow_hub as hub
+import tensorflow_hub as hubå
 import numpy as np
 import tensorflow as tf
 
@@ -37,20 +37,18 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Load environment variables from .env file
 load_dotenv()
-app.config['SECRET_KEY'] = os.environ.get("BACKEND_TOKEN_SECRET_KET", "")  # Replace with a strong, random secret key
+app.config['SECRET_KEY'] = os.environ.get("BACKEND_TOKEN_SECRET_KEY", "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")  # Replace with a strong, random secret key
+
 #Admin info
-# admin_username = os.environ.get("ADMIN_USERNAME", "admin123")
-# admin_password = os.environ.get("ADMIN_PASSWORD", "trivi2023!")
-# print(bcrypt.generate_password_hash('admin123').decode('utf-8'))
 app.config['UPLOAD_FOLDER'] = 'public/reference/'
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB limit
 
 # MongoDB configuration
-mongo_username = 'root'
-mongo_password = 'example'
-mongo_host = 'mongo'
-mongo_port = 27017
-mongo_dbname = 'mydatabase'
+mongo_username = os.environ.get("MONGO_USERNAME", 'root')
+mongo_password = os.environ.get("MONGO_PASSWORD", 'example')
+mongo_host = os.environ.get("MONGO_HOST", 'mongo')
+mongo_port = os.environ.get("MONGO_PORT", 27017)
+mongo_dbname = os.environ.get("MONGO_DBNAME", 'mydatabase')
 
 # Construct the MongoDB connection URI with authentication
 mongo_uri = f'mongodb://{mongo_username}:{mongo_password}@{mongo_host}:{mongo_port}'
@@ -70,9 +68,10 @@ references_collection = mongo['tr_reference']
 reference_chat_collection = mongo['tr_reference_chat']
 
 #Open AI config
-openai.api_key = os.environ.get("OPENAI_API_KEY", "")
+openai.api_key = os.environ.get("OPENAI_API_KEY", "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")
 hours_threshold = 12
 
+#Load language model
 model_embedding = tf.saved_model.load("model/")
 
 # Your routes and other configurations go here
@@ -1091,7 +1090,7 @@ def update_reference():
                 elif (new_status == 'unselected'):
                     status = ['screened']
                 else:
-                    status = [status]
+                    status = [new_status]
 
                 references_collection.update_one({
                     '_id': ObjectId(ref_id)

@@ -33,7 +33,7 @@ class RightSidebar1 extends Component {
   handlePreview = () => {
     // Fetch referenceInfo from your backend API
     const {referenceId} = this.state;
-    const pdfUrl = `http://192.168.2.215:5000/public/static_reference/${referenceId}.pdf`;
+    const pdfUrl = `http://${process.env.REACT_APP_FLASK_IP}/public/static_reference/${referenceId}.pdf`;
     // Open a new window or tab to display the PDF
     window.open(pdfUrl, '_blank');
   }
@@ -183,39 +183,35 @@ class RightSidebar1 extends Component {
     });
   }
 
-  autoAnswer = (is_replaced) => {
+  autoAnswer = async (question) => {
+    let message = `Let answer this question: ${question}`;
+    this.setState({ loading: true });
+    
+    // Add user's message to the chat first
+    this.props.onMessageSent({ content: message, role: 'user' });
+
     const pro_id = this.context.project['pro_id'];
-    const {referenceId} = this.state;
-    const endpoint = `auto_answer`;
+    const endpoint = 'send_message_step_2';
     const method = 'POST';
     const headers = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
-  
+
     const body = {
       'pro_id': pro_id,
-      'ref_id': referenceId,
-      'type': 'qlty' 
+      'ref_id': this.state.referenceId,
+      'question_type': '0',
+      'message': message
     }
 
-    this.setState({isFinding: true});
-    this.setState({ loading: true });
+    const response = await this.context.handleApiRequest(endpoint, method, headers, body);
+    // Handle the response from Flask and update your chat
 
-    this.context.handleApiRequest(endpoint, method, headers, body)
-    .then((data) => {
-      this.setState({isFinding: false, loading: false});
+    if (response.success) {
+      this.props.onMessageSent({ content: response.data.message, role: 'assistant' });
+    }
 
-      this.context.handleShowNoti({
-        level: 'success',
-        message: data.message
-      });
-
-
-      window.location.reload();
-    })
-    .catch((error) => {
-      this.setState({isFinding: false, loading: false});
-    });
+    this.setState({ loading: false });
   }
 
   saveTag = (status) => {
@@ -369,16 +365,6 @@ class RightSidebar1 extends Component {
           <div className="mt-3 mb-3"> {/* Center text and buttons */}
               <label className="mb-3" style={{ fontWeight: 'bold', marginRight: '7px'  }}>Quality Assessment Questions: </label>
               <div style={{ display: 'flex', justifyContent: 'flex-end'}}>
-              {referenceInfo.pdf ? 
-                <div>
-                  {
-                    this.state.isFinding ? 
-                      <Button variant="primary">Finding ...</Button> : 
-                      <>
-                        <Button variant="primary" onClick={() => this.autoAnswer(true)}>Auto-answer</Button>
-                      </>
-                  }
-                </div> : <></>}
             </div>
             {this.state.temporaryValues.map((value, index) => (
               <Card className='mt-2 mb-4'>
@@ -425,6 +411,10 @@ class RightSidebar1 extends Component {
                         Edit
                       </Button>
                     </div>
+                    {referenceInfo.pdf ? 
+                      <Button variant="primary" onClick={() => this.autoAnswer(referenceInfo['response_qlty_questions'][index]['question'])}>Auto-answer</Button>
+                      : <></>
+                    }
                   </>
                 )}
               </div>

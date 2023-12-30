@@ -91,7 +91,7 @@ class RightSidebar2 extends Component {
   handlePreview = () => {
     // Fetch referenceInfo from your backend API
     const {referenceId} = this.state;
-    const pdfUrl = `http://192.168.2.215:5000/public/static_reference/${referenceId}.pdf`;
+    const pdfUrl = `http://${process.env.REACT_APP_FLASK_IP}/public/static_reference/${referenceId}.pdf`;
     // Open a new window or tab to display the PDF
     window.open(pdfUrl, '_blank');
   }
@@ -251,39 +251,35 @@ class RightSidebar2 extends Component {
     });
   }
 
-  autoAnswer = (key) => {
+  autoAnswer = async (question) => {
+    let message = `Let answer this question: ${question}`;
+    this.setState({ loading: true });
+    
+    // Add user's message to the chat first
+    this.props.onMessageSent({ content: message, role: 'user' });
+
     const pro_id = this.context.project['pro_id'];
-    const {referenceId} = this.state;
-    const endpoint = `auto_answer`;
+    const endpoint = 'send_message_step_2';
     const method = 'POST';
     const headers = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
-  
+
     const body = {
       'pro_id': pro_id,
-      'ref_id': referenceId,
-      'type': 'extract',
-      'question_id': key 
+      'ref_id': this.state.referenceId,
+      'question_type': '1',
+      'message': message
     }
 
-    this.setState({ loading: true });
+    const response = await this.context.handleApiRequest(endpoint, method, headers, body);
+    // Handle the response from Flask and update your chat
 
-    this.context.handleApiRequest(endpoint, method, headers, body)
-    .then((data) => {
-      this.setState({loading: false});
+    if (response.success) {
+      this.props.onMessageSent({ content: response.data.message, role: 'assistant' });
+    }
 
-      this.context.handleShowNoti({
-        level: 'success',
-        message: data.message
-      });
-
-
-      window.location.reload();
-    })
-    .catch((error) => {
-      this.setState({loading: false});
-    });
+    this.setState({ loading: false });
   }
 
 
@@ -410,7 +406,6 @@ class RightSidebar2 extends Component {
                           <label className="mb-3" style={{ fontWeight: 'bold', marginRight: '7px' }}>
                             {`RQ${index + 1}: ${questions[key]['value']}`}
                           </label>
-                          <Button variant="primary" className='mb-2' onClick={() => this.autoAnswer(key)}>Auto-answer</Button>
                           {temporaryAnswers[key] ? (
                             <>
                               {Object.keys(temporaryAnswers[key]).map((sub_key, sub_index) => (
@@ -454,6 +449,7 @@ class RightSidebar2 extends Component {
                                           >
                                             Edit
                                           </Button>
+                                          <Button variant="primary" className='mb-2' onClick={() => this.autoAnswer(questions[key]['sub_questions'][sub_key]['value'])}>Auto-answer</Button>
                                         </div>
                                       </>
                                     )

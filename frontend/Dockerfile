@@ -16,5 +16,8 @@ COPY . .
 # Expose port 3000 for the React app
 EXPOSE 3000
 
+
+ARG REACT_APP_FLASK_IP
+ENV REACT_APP_FLASK_IP=$REACT_APP_FLASK_IP
 # Command to start the React app
 CMD ["npm", "start"]

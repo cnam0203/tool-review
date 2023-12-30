@@ -297,7 +297,7 @@ class RightSidebar extends Component {
                   [`${field}s`]: [...prevState[`${field}s`], { '_id': data['_id'], 'created_by': this.context.username, 'value': newValue, 'question_id': field == 'subQuestion' ? this.state.tmpQuestionGroup : '' }],
                   [`new${field.charAt(0).toUpperCase() + field.slice(1)}`]: '',
                   [`edit${field.charAt(0).toUpperCase() + field.slice(1)}s`]: Array(prevState[`${field}s`].length + 1).fill(false),
-                  [`original${field.charAt(0).toUpperCase() + field.slice(1)}s`]: [...prevState[`original${field.charAt(0).toUpperCase() + field.slice(1)}s`], { '_id': '123', 'created_by': this.context.username, 'value': newValue, 'question_id': field == 'subQuestion' ? this.state.tmpQuestionGroup : ''  }],
+                  [`original${field.charAt(0).toUpperCase() + field.slice(1)}s`]: [...prevState[`original${field.charAt(0).toUpperCase() + field.slice(1)}s`], { '_id': data['_id'], 'created_by': this.context.username, 'value': newValue, 'question_id': field == 'subQuestion' ? this.state.tmpQuestionGroup : ''  }],
                 }));
               } else if (changeType === 'remove') {
                 this.setState((prevState) => {

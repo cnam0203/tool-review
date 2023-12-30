@@ -21,7 +21,6 @@ class ProjectPage extends Component {
 
     this.context.handleApiRequest(endpoint, method, headers, body)
       .then((responseData) => {
-        console.log(responseData.projects);
         this.setState({ projects: responseData.projects });
         this.context.handleUpdateProjects(responseData.projects);
       })
