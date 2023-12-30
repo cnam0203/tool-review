@@ -18,6 +18,7 @@ import FullTextScreen from './pages/FullTextScreen';
 import ReferenceFullScreen from './pages/ReferenceFullScreen';
 import DataExtraction from './pages/DataExtraction';
 import ReferenceExtraction from './pages/ReferenceExtraction';
+import DocumentSynthesis from './pages/DocumentSynthesis';
 
 function AppRouter() {
     const { token, role } = useContext(AppContext);
@@ -113,6 +114,12 @@ function AppRouter() {
                     path="/reference-full-screen"
                     element={
                         token ? <ReferenceFullScreen/> : <Navigate to="/login" />
+                    }
+                />
+                <Route
+                    path="/synthesis"
+                    element={
+                        token ? <DocumentSynthesis/> : <Navigate to="/login" />
                     }
                 />
                 <Route

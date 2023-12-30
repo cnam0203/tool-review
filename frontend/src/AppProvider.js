@@ -97,7 +97,7 @@ const AppProvider = ({children}) => {
         handleUpdateProjects(info['projects'])
     }
  
-    const handleApiRequest = async (endpoint, method = 'GET', headers = {}, body, isFile=false) => {
+    const handleApiRequest = async (endpoint, method = 'GET', headers = {}, body, isFile=false, isJsonParse=true) => {
         try {
             // Add Authorization header if token exists
             if (token) {
@@ -113,19 +113,24 @@ const AppProvider = ({children}) => {
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
+            
+            if (isJsonParse) {
+                const data = await response.json();
         
-            const data = await response.json();
-    
-            // Check for 'error' property in the JSON response
-            if (data.error) {
+                // Check for 'error' property in the JSON response
+                if (data.error) {
 
-                if (data.error == 'token') {
-                    handleLogout();
+                    if (data.error == 'token') {
+                        handleLogout();
+                    }
+                    throw new Error(data.message);
                 }
-                throw new Error(data.message);
+
+                return data;
+            } else {
+                console.log('Not json parse')
+                return response;
             }
-    
-            return data;
         } catch (error) {
 
             handleShowNoti({
