@@ -37,7 +37,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Load environment variables from .env file
 load_dotenv()
-app.config['SECRET_KEY'] = os.environ.get("BACKEND_TOKEN_SECRET_KEY", "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")  # Replace with a strong, random secret key
+app.config['SECRET_KEY'] = os.environ.get("BACKEND_TOKEN_SECRET_KEY", "")  # Replace with a strong, random secret key
 
 #Admin info
 app.config['UPLOAD_FOLDER'] = 'public/reference/'
@@ -68,7 +68,7 @@ references_collection = mongo['tr_reference']
 reference_chat_collection = mongo['tr_reference_chat']
 
 #Open AI config
-openai.api_key = os.environ.get("OPENAI_API_KEY", "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")
+openai.api_key = os.environ.get("OPENAI_API_KEY", "")
 hours_threshold = 12
 
 #Load language model
